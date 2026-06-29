@@ -1,0 +1,10 @@
+# OS
+.DS_Store
+
+# Cloudflare Wrangler
+.wrangler/
+node_modules/
+
+# Données / exports de test (ne pas committer de données personnelles)
+*.csv
+*.xlsx

@@ -1,0 +1,1390 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Meetup Pipeline — Anara</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,700;12..96,800&family=EB+Garamond:ital,wght@0,400;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <style>
+    /* ── Anara design tokens ── */
+    :root {
+      --cream:        #f1ebde;
+      --cream-dark:   #e8e0cf;
+      --ink:          #131310;
+      --ink-soft:     #3a342c;
+      --mustard:      #c89438;
+      --mustard-dark: #a87a28;
+      --brick:        #a8392a;
+      --faded:        #6e6760;
+      --faded-light:  #9b948a;
+      --hairline:     rgba(19, 19, 16, 0.18);
+      --hairline-dim: rgba(19, 19, 16, 0.10);
+      --hairline-strong: rgba(19, 19, 16, 0.40);
+      --success:      #2d6a4f;
+
+      --display: "Bricolage Grotesque", system-ui, sans-serif;
+      --serif:   "EB Garamond", Garamond, serif;
+      --mono:    "JetBrains Mono", ui-monospace, monospace;
+    }
+
+    /* ── Reset & base ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--display);
+      background: var(--cream);
+      color: var(--ink);
+      min-height: 100vh;
+      padding-bottom: 80px;
+    }
+    a { color: var(--mustard); }
+
+    /* ── Layout ── */
+    .wrap { max-width: 880px; margin: 0 auto; }
+
+    /* ── Header ── */
+    .site-header {
+      background: var(--ink);
+      color: var(--cream);
+      padding: 20px 32px 18px;
+      border-bottom: 1.5px solid var(--ink);
+    }
+    .site-header h1 {
+      font-family: var(--display);
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      color: var(--cream);
+    }
+    .site-header p {
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      color: var(--faded-light);
+      margin-top: 4px;
+      text-transform: uppercase;
+    }
+
+    /* ── API bar ── */
+    .api-bar {
+      background: var(--cream-dark);
+      border-bottom: 1px solid var(--hairline);
+      padding: 10px 32px;
+      display: flex;
+      gap: 20px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .api-bar .api-field {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .api-bar label {
+      font-family: var(--mono);
+      font-size: 10px;
+      font-weight: 500;
+      letter-spacing: 0.10em;
+      color: var(--faded);
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+    .api-bar input[type="password"] {
+      font-family: var(--mono);
+      font-size: 12px;
+      padding: 5px 10px;
+      border: 1px solid var(--hairline-strong);
+      background: var(--cream);
+      color: var(--ink);
+      width: 210px;
+      outline: none;
+    }
+    .api-bar input[type="password"]:focus {
+      border-color: var(--mustard);
+    }
+    .api-bar .api-status {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 500;
+      margin-left: auto;
+      letter-spacing: 0.04em;
+    }
+
+    /* ── Accordion phases ── */
+    .phase {
+      border: 1px solid var(--hairline);
+      margin: 16px 32px;
+      background: var(--cream);
+      border-top: 2px solid var(--ink);
+    }
+    .phase-header {
+      padding: 14px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+      user-select: none;
+      background: var(--cream);
+      border-bottom: 1px solid var(--hairline-dim);
+    }
+    .phase-header h2 {
+      font-family: var(--display);
+      font-size: 14px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--ink);
+    }
+    .phase-header .badge {
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 0.06em;
+      padding: 2px 7px;
+      font-weight: 500;
+    }
+    .phase-header .actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .phase-header .arrow {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--faded);
+    }
+    .phase-body {
+      padding: 20px;
+      display: none;
+    }
+    .phase-body.open { display: block; }
+
+    /* Locked phase */
+    .phase.locked {
+      border-top-color: var(--hairline-strong);
+      opacity: 0.6;
+    }
+    .phase.locked .phase-header {
+      cursor: not-allowed;
+      background: var(--cream-dark);
+    }
+    .phase.locked .phase-header h2 { color: var(--faded); }
+
+    /* ── Buttons ── */
+    .btn {
+      font-family: var(--display);
+      font-weight: 700;
+      font-size: 13px;
+      padding: 8px 16px;
+      border: 1.5px solid var(--ink);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: background 0.15s, color 0.15s;
+      letter-spacing: -0.01em;
+    }
+    .btn-primary {
+      background: var(--mustard);
+      color: var(--ink);
+      border-color: var(--mustard);
+    }
+    .btn-primary:hover:not(:disabled) {
+      background: var(--mustard-dark);
+      border-color: var(--mustard-dark);
+    }
+    .btn-secondary {
+      background: transparent;
+      color: var(--ink);
+      border-color: var(--hairline-strong);
+    }
+    .btn-secondary:hover:not(:disabled) {
+      border-color: var(--ink);
+      background: var(--cream-dark);
+    }
+    .btn:disabled {
+      opacity: 0.38;
+      cursor: not-allowed;
+    }
+
+    /* ── Drop zone ── */
+    .drop-zone {
+      border: 1.5px dashed var(--hairline-strong);
+      padding: 36px 24px;
+      text-align: center;
+      cursor: pointer;
+      background: var(--cream);
+      transition: background 0.15s, border-color 0.15s;
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--faded);
+      letter-spacing: 0.04em;
+    }
+    .drop-zone.hover {
+      border-color: var(--mustard);
+      background: var(--cream-dark);
+      color: var(--mustard-dark);
+    }
+
+    /* ── Progress ── */
+    .progress {
+      height: 3px;
+      background: var(--hairline);
+      margin: 10px 0;
+      overflow: hidden;
+    }
+    .bar {
+      height: 100%;
+      width: 0%;
+      background: var(--mustard);
+      transition: width 0.3s ease;
+    }
+    .bar.success { background: var(--success); }
+    .bar.warn    { background: var(--brick); }
+
+    /* ── Table ── */
+    table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 12px; }
+    th {
+      background: var(--ink);
+      color: var(--cream);
+      padding: 8px 10px;
+      text-align: left;
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      font-weight: 500;
+    }
+    td { padding: 7px 10px; border-bottom: 1px solid var(--hairline-dim); font-size: 13px; }
+    tr:nth-child(even) td { background: var(--cream); }
+
+    /* ── Typography helpers ── */
+    .kpi {
+      font-family: var(--serif);
+      font-size: 15px;
+      color: var(--ink-soft);
+      line-height: 1.5;
+    }
+    .mono-label {
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--faded);
+      font-weight: 500;
+      display: block;
+      margin-bottom: 5px;
+    }
+    .hint {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--faded);
+      margin-top: 4px;
+      letter-spacing: 0.02em;
+    }
+    .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+
+    /* ── Range slider ── */
+    input[type="range"] { width: 100%; accent-color: var(--mustard); }
+  </style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- Header -->
+  <header class="site-header">
+    <h1>Meetup Pipeline</h1>
+    <p id="headerSubtitle">Import → Serper Search · top 10 → Gemini Flash scoring → Export CSV</p>
+  </header>
+
+  <!-- API Keys bar -->
+  <div class="api-bar">
+    <div class="api-field">
+      <label for="serperKey">Serper</label>
+      <input type="password" id="serperKey" placeholder="clé Serper…" autocomplete="off" />
+    </div>
+    <div class="api-field">
+      <label for="geminiKey">Gemini</label>
+      <input type="password" id="geminiKey" placeholder="AIza…" autocomplete="off" />
+    </div>
+    <span class="api-status" id="apiStatus">—</span>
+    <div style="display:flex;gap:0;margin-left:auto;border:1.5px solid var(--hairline-strong);">
+      <button id="langFr" onclick="setSearchLang('fr')"
+        style="font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:.06em;padding:4px 10px;border:none;cursor:pointer;background:var(--ink);color:var(--cream);">FR</button>
+      <button id="langEn" onclick="setSearchLang('en')"
+        style="font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:.06em;padding:4px 10px;border:none;cursor:pointer;background:transparent;color:var(--ink);">EN</button>
+    </div>
+  </div>
+
+  <!-- ⬇ Scraper section -->
+  <div id="scraperSection" style="background:var(--cream);border:1.5px solid var(--ink);margin-bottom:0;padding:20px 24px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+      <h2 id="scraperTitle" style="font-size:15px;font-weight:700;color:var(--ink);margin:0;">⬇ Installer le scraper Meetup</h2>
+    </div>
+    <p id="scraperDesc" style="font-size:13px;color:var(--faded);margin-bottom:16px;line-height:1.5;">Pour exporter les participants depuis une page Meetup. Deux options : bookmarklet (sans installation admin) ou extension Chrome (mode développeur).</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;">
+      <!-- Bookmarklet -->
+      <div>
+        <div style="font-size:11px;font-family:var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--faded);margin-bottom:10px;border-bottom:1px solid var(--hairline);padding-bottom:8px;">Option 1 — Bookmarklet</div>
+        <a id="bookmarkletLink" href="#" draggable="true"
+           style="display:inline-block;padding:8px 16px;background:var(--mustard);color:var(--ink);font-family:var(--mono);font-size:12px;font-weight:700;text-decoration:none;letter-spacing:.04em;border:1.5px solid var(--mustard-dark);user-select:none;"
+           onclick="return false;">⭐ Meetup Scraper</a>
+        <p id="scraperBmHint" style="margin-top:10px;font-size:12px;color:var(--faded);line-height:1.5;">Glisser ce bouton dans la barre de favoris. Sur une page Meetup, cliquer dessus pour lancer l'extraction.</p>
+      </div>
+      <!-- Extension Chrome -->
+      <div>
+        <div style="font-size:11px;font-family:var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--faded);margin-bottom:10px;border-bottom:1px solid var(--hairline);padding-bottom:8px;">Option 2 — Extension Chrome</div>
+        <button onclick="downloadExtensionZip()" class="btn btn-primary" style="font-size:12px;padding:8px 16px;">⬇ Télécharger .zip</button>
+        <p id="scraperExtHint" style="margin-top:10px;font-size:12px;color:var(--faded);line-height:1.5;">Dézipper, puis dans Chrome : ⋮ → Extensions → Mode développeur → Charger l'extension décompressée.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Phase 1 : Import -->
+  <div class="phase" id="phase1">
+    <div class="phase-header">
+      <h2>
+        <span id="phase1TitleText">① Import &amp; Filtre fidélité</span>
+        <span class="badge" id="p1Badge" style="background:var(--cream-dark);color:var(--faded);"></span>
+      </h2>
+      <div class="actions">
+        <button class="btn btn-secondary" id="p1ExportBtn" disabled onclick="exportPhase1CSV(event)">⬇ CSV</button>
+        <span class="arrow" id="p1Arrow">▾</span>
+      </div>
+    </div>
+    <div class="phase-body open" id="phase1Body">
+      <div class="drop-zone" id="dropZone1"
+           role="button" tabindex="0"
+           aria-label="Importer le CSV meetup1 brut">
+        <span id="dropZone1Text">Glisser le CSV meetup1 brut ici — ou cliquer pour sélectionner</span>
+        <input type="file" id="fileInput1" accept=".csv" style="display:none" />
+      </div>
+      <div id="p1Status" class="kpi" style="margin-top:12px;min-height:20px;"></div>
+
+      <!-- Filter zone — hidden until CSV loaded -->
+      <div id="p1FilterZone" style="display:none;margin-top:16px;padding:16px;background:var(--cream-dark);border:1px solid var(--hairline);">
+        <label class="mono-label" id="p1FilterLabel">Seuil de fidélité — nombre minimum de présences</label>
+        <div style="display:flex;align-items:center;gap:12px;margin-top:8px;">
+          <input type="range" id="p1Slider" min="1" max="10" value="2" style="flex:1;" />
+          <span id="p1SliderVal" style="font-family:var(--mono);font-size:13px;font-weight:600;color:var(--ink);white-space:nowrap;min-width:120px;">≥ 2 présences</span>
+        </div>
+        <p id="p1SliderCount" style="font-family:var(--mono);font-size:12px;color:var(--faded);margin-top:6px;"></p>
+        <button class="btn btn-primary" id="p1ConfirmBtn" style="margin-top:12px;" onclick="applyPhase1Filter()">Appliquer →</button>
+
+      </div>
+
+      <div id="p1Preview"></div>
+    </div>
+  </div>
+
+  <!-- Phase 2 : Serper Search ou import JSON -->
+  <div class="phase" id="phase2">
+    <div class="phase-header">
+      <h2>
+        <span id="phase2TitleText">② Serper Search — top 10</span>
+        <span class="badge" id="p2Badge" style="background:var(--cream-dark);color:var(--faded);"></span>
+      </h2>
+      <div class="actions">
+        <button class="btn btn-secondary" id="p2ExportBtn" disabled onclick="exportPhase2JSON(event)">⬇ JSON</button>
+        <span class="arrow" id="p2Arrow">▸</span>
+      </div>
+    </div>
+    <div class="phase-body" id="phase2Body">
+      <div id="phase2UI"></div>
+    </div>
+  </div>
+
+  <!-- Phase 3 : Gemini scoring -->
+  <div class="phase locked" id="phase3">
+    <div class="phase-header">
+      <h2>
+        <span id="phase3TitleText">③ Gemini Flash — scoring</span>
+        <span class="badge" id="p3Badge" style="background:var(--cream-dark);color:var(--faded);"></span>
+      </h2>
+      <div class="actions">
+        <span class="arrow" id="p3Arrow">▸</span>
+      </div>
+    </div>
+    <div class="phase-body" id="phase3Body">
+      <div id="phase3UI"></div>
+    </div>
+  </div>
+
+  <!-- Phase 4 : Export -->
+  <div class="phase locked" id="phase4">
+    <div class="phase-header">
+      <h2>
+        <span id="phase4TitleText">④ Export CSV</span>
+        <span class="badge" id="p4Badge" style="background:var(--cream-dark);color:var(--faded);"></span>
+      </h2>
+      <div class="actions">
+        <span class="arrow" id="p4Arrow">▸</span>
+      </div>
+    </div>
+    <div class="phase-body" id="phase4Body">
+      <div id="phase4UI"></div>
+    </div>
+  </div>
+
+</div><!-- /wrap -->
+
+<script>
+// ── Global state ──────────────────────────────────────────────────────────────
+let phase1RawRows = [];  // raw meetup1 rows before filter/dedup
+let phase1Rows    = [];  // filtered & deduped [{memberName, memberRole, eventTitle, eventDescription}]
+let phase2Data = [];  // [{...phase1Row, results:[{url,title,snippet}]}]
+let phase3Data = [];  // [{...phase2, bestIndex, bestUrl, bestTitle, confidence, reason}]
+let searchLang = localStorage.getItem('search_lang') || 'fr';
+
+// ── Translations ──────────────────────────────────────────────────────────────
+const T = {
+  fr: {
+    subtitle:          'Import → Serper Search · top 10 → Gemini Flash scoring → Export CSV',
+    dropzone:          'Glisser le CSV meetup1 brut ici — ou cliquer pour sélectionner',
+    filterLabel:       'Seuil de fidélité — nombre minimum de présences',
+    applyBtn:          'Appliquer →',
+    phase1Title:       '① Import &amp; Filtre fidélité',
+    phase2Title:       '② Serper Search — top 10',
+    phase3Title:       '③ Gemini Flash — scoring',
+    phase4Title:       '④ Export CSV',
+    keywordLabel:      'Mot-clé contextuel (domaine, métier…)',
+    keywordPlaceholder:'ex : data, recrutement, IA…',
+    launchSearch:      '▶ Lancer la recherche',
+    pause:             '⏸ Pause',
+    resume:            '▶ Reprendre',
+    jsonSectionLabel:  'Reprendre depuis un export JSON',
+    jsonBtn:           '↑ Charger un JSON Phase 2',
+    launchScoring:     '▶ Lancer le scoring',
+    thMember:          'Membre',
+    thBest:            'Meilleur profil',
+    thConfidence:      'Confiance',
+    thReason:          'Raison / Erreur',
+    exportBtn:         '⬇ Exporter les 2 fichiers CSV',
+    exportDesc:        'Deux fichiers CSV générés simultanément',
+    exportLi1:         '<strong>best_profiles</strong> — 1 ligne par membre, meilleur profil retenu',
+    exportLi2:         '<strong>all_scores</strong> — jusqu\'à 10 lignes par membre, colonne is_best',
+    scraperTitle:      '⬇ Installer le scraper Meetup',
+    scraperDesc:       'Pour exporter les participants depuis une page Meetup. Deux options : bookmarklet (sans installation admin) ou extension Chrome (mode développeur).',
+    scraperBmHint:     'Glisser ce bouton dans la barre de favoris. Sur une page Meetup, cliquer dessus pour lancer l\'extraction.',
+    scraperExtHint:    'Dézipper, puis dans Chrome : ⋮ → Extensions → Mode développeur → Charger l\'extension décompressée.',
+    apiReady:          '✓ Gemini prêt — Serper optionnel',
+    apiReadyFull:      '✓ Prêt (pipeline complet)',
+    apiMissing:        '⚠ Clé Gemini manquante',
+    geminiAlert:       'Entrez votre clé Gemini en haut de page.',
+    serperAlert:       'Clé Serper manquante.',
+    phase1Alert:       'Importez d\'abord un CSV en Phase 1.',
+    scoringDone:       (m, t) => `✓ Scoring terminé — ${m}/${t} profils identifiés`,
+    matched:           (m, t) => `${m}/${t} matchés`,
+    scoredKpi:         (t, m) => `${t} membres scorés · ${m} profils identifiés`,
+  },
+  en: {
+    subtitle:          'Import → Serper Search · top 10 → Gemini Flash scoring → CSV Export',
+    dropzone:          'Drop raw meetup1 CSV here — or click to select',
+    filterLabel:       'Fidelity threshold — minimum attendance count',
+    applyBtn:          'Apply →',
+    phase1Title:       '① Import &amp; Fidelity Filter',
+    phase2Title:       '② Serper Search — top 10',
+    phase3Title:       '③ Gemini Flash — scoring',
+    phase4Title:       '④ Export CSV',
+    keywordLabel:      'Contextual keyword (industry, role…)',
+    keywordPlaceholder:'e.g. data, recruiting, AI…',
+    launchSearch:      '▶ Start search',
+    pause:             '⏸ Pause',
+    resume:            '▶ Resume',
+    jsonSectionLabel:  'Resume from a previous JSON export',
+    jsonBtn:           '↑ Load Phase 2 JSON',
+    launchScoring:     '▶ Start scoring',
+    thMember:          'Member',
+    thBest:            'Best profile',
+    thConfidence:      'Confidence',
+    thReason:          'Reason / Error',
+    exportBtn:         '⬇ Export 2 CSV files',
+    exportDesc:        'Two CSV files generated simultaneously',
+    exportLi1:         '<strong>best_profiles</strong> — 1 row per member, best profile retained',
+    exportLi2:         '<strong>all_scores</strong> — up to 10 rows per member, is_best column',
+    scraperTitle:      '⬇ Install the Meetup scraper',
+    scraperDesc:       'To export attendees from a Meetup page. Two options: bookmarklet (no admin rights needed) or Chrome extension (developer mode).',
+    scraperBmHint:     'Drag this button into your bookmarks bar. On a Meetup page, click it to start the export.',
+    scraperExtHint:    'Unzip, then in Chrome: ⋮ → Extensions → Developer mode → Load unpacked.',
+    apiReady:          '✓ Gemini ready — Serper optional',
+    apiReadyFull:      '✓ Ready (full pipeline)',
+    apiMissing:        '⚠ Gemini API key missing',
+    geminiAlert:       'Please enter your Gemini API key at the top.',
+    serperAlert:       'Serper API key missing.',
+    phase1Alert:       'Please import a Phase 1 CSV first.',
+    scoringDone:       (m, t) => `✓ Scoring complete — ${m}/${t} profiles identified`,
+    matched:           (m, t) => `${m}/${t} matched`,
+    scoredKpi:         (t, m) => `${t} members scored · ${m} profiles identified`,
+  },
+};
+function t(key) { return T[searchLang]?.[key] ?? T.fr[key] ?? key; }
+
+// ── API Keys (localStorage) ───────────────────────────────────────────────────
+const serperKeyEl = document.getElementById('serperKey');
+const geminiKeyEl = document.getElementById('geminiKey');
+const apiStatusEl = document.getElementById('apiStatus');
+
+serperKeyEl.value = localStorage.getItem('serper_key') || '';
+geminiKeyEl.value = localStorage.getItem('gemini_key') || '';
+
+function saveKeys() {
+  serperKeyEl.value.trim()
+    ? localStorage.setItem('serper_key', serperKeyEl.value)
+    : localStorage.removeItem('serper_key');
+  geminiKeyEl.value.trim()
+    ? localStorage.setItem('gemini_key', geminiKeyEl.value)
+    : localStorage.removeItem('gemini_key');
+  updateApiStatus();
+}
+serperKeyEl.addEventListener('change', saveKeys);
+geminiKeyEl.addEventListener('change', saveKeys);
+
+function updateApiStatus() {
+  const hasBrave  = !!serperKeyEl.value.trim();
+  const hasGemini = !!geminiKeyEl.value.trim();
+  if (hasGemini) {
+    apiStatusEl.textContent = hasBrave ? t('apiReadyFull') : t('apiReady');
+    apiStatusEl.style.color = 'var(--success)';
+  } else {
+    apiStatusEl.textContent = t('apiMissing');
+    apiStatusEl.style.color = 'var(--faded)';
+  }
+}
+updateApiStatus();
+
+// Appliquer la langue sauvegardée et initialiser Phase 2
+applyTranslations();
+const p2Body = document.getElementById('phase2Body');
+const p2Arrow = document.getElementById('p2Arrow');
+p2Body.classList.add('open');
+if (p2Arrow) p2Arrow.textContent = '▾';
+
+// Wire all phase-header clicks via delegation
+document.querySelectorAll('.phase-header').forEach(header => {
+  header.addEventListener('click', () => togglePhase(header.closest('.phase').id));
+});
+
+// ── Accordion ─────────────────────────────────────────────────────────────────
+function togglePhase(id) {
+  const el = document.getElementById(id);
+  if (el.classList.contains('locked')) return;
+  const body  = el.querySelector('.phase-body');
+  const arrow = el.querySelector('.arrow');
+  const isOpen = body.classList.contains('open');
+  body.classList.toggle('open', !isOpen);
+  if (arrow) arrow.textContent = isOpen ? '▸' : '▾';
+}
+
+function unlockPhase(id) {
+  const el   = document.getElementById(id);
+  const body  = el.querySelector('.phase-body');
+  const arrow = el.querySelector('.arrow');
+  el.classList.remove('locked');
+  body.classList.add('open');
+  if (arrow) arrow.textContent = '▾';
+}
+
+// ── Utilities ─────────────────────────────────────────────────────────────────
+const delay = ms => new Promise(r => setTimeout(r, ms));
+
+function normalizeName(name) {
+  return (name || '').replace(/\./g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function isValidFullName(name) {
+  const n = normalizeName(name);
+  if (!n || /[_@]/.test(n)) return false;
+  const longWords = n.split(' ').filter(w => w.length >= 2);
+  return longWords.length >= 2;
+}
+
+function makeFilename(base) {
+  const date = new Date().toISOString().slice(0, 10);
+  return base ? `${base}_${date}` : date;
+}
+
+function downloadBlob(blob, filename) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(a.href);
+}
+
+// ── Phase 1 : Import CSV ──────────────────────────────────────────────────────
+const REQUIRED_COLS = ['membername', 'memberrole', 'eventtitle', 'eventdate', 'eventdescription'];
+
+function validateCols(headers) {
+  const lower = headers.map(h => h.toLowerCase().trim());
+  return REQUIRED_COLS.every(c => lower.includes(c));
+}
+
+function parsePhase1CSV(csvText) {
+  const parsed = Papa.parse(csvText, { header: true, skipEmptyLines: true });
+  if (!parsed.data.length) return null;
+  const headers = Object.keys(parsed.data[0]);
+  if (!validateCols(headers)) return null;
+  return parsed.data.map(row => {
+    const n = {};
+    Object.keys(row).forEach(k => { n[k.trim().toLowerCase()] = (row[k] || '').trim(); });
+    return {
+      memberName:       n['membername']       || '',
+      memberRole:       n['memberrole']       || '',
+      eventTitle:       n['eventtitle']       || '',
+      eventDate:        n['eventdate']        || '',
+      eventDescription: n['eventdescription'] || '',
+    };
+  }).filter(r => r.memberName);
+}
+
+function computeFrequency(rows) {
+  const freq = {};
+  rows.forEach(r => { freq[r.memberName] = (freq[r.memberName] || 0) + 1; });
+  return freq;  // {memberName → count}
+}
+
+function applyPhase1Filter() {
+  const threshold = parseInt(document.getElementById('p1Slider').value) || 1;
+  const freq = computeFrequency(phase1RawRows);
+
+  // Filter rows by threshold
+  const filtered = phase1RawRows.filter(r => freq[r.memberName] >= threshold);
+
+  // Deduplicate: sort by eventDate DESC, keep first occurrence per member
+  filtered.sort((a, b) => (b.eventDate || '').localeCompare(a.eventDate || ''));
+  const seen = new Set();
+  const deduped = filtered.filter(r => {
+    if (seen.has(r.memberName)) return false;
+    seen.add(r.memberName);
+    return true;
+  });
+
+  // Normalize names (dot → space) and filter invalid names
+  const invalid = [];
+  phase1Rows = deduped.map(r => ({ ...r, memberName: normalizeName(r.memberName) }))
+    .filter(r => {
+      if (isValidFullName(r.memberName)) return true;
+      invalid.push(r.memberName);
+      return false;
+    }).map(r => ({
+      memberName:       r.memberName,
+      memberRole:       r.memberRole,
+      eventTitle:       r.eventTitle,
+      eventDescription: r.eventDescription,
+    }));
+
+  // Update badge
+  const badge = document.getElementById('p1Badge');
+  badge.textContent = `${phase1Rows.length} membres`;
+  badge.style.background = 'var(--mustard)';
+  badge.style.color       = 'var(--ink)';
+
+  // Show preview table
+  const preview = document.getElementById('p1Preview');
+  const sample  = phase1Rows.slice(0, 5);
+  preview.innerHTML = `
+    <p class="kpi" style="margin-bottom:10px;">✓ <strong>${phase1Rows.length}</strong> membres retenus (seuil ≥ ${threshold}) · événement : <em>${phase1Rows[0]?.eventTitle || '—'}</em></p>
+    ${invalid.length ? `<p class="kpi" style="color:var(--brick);margin-bottom:8px;">✗ ${invalid.length} nom(s) invalide(s) ignoré(s) : ${invalid.join(', ')}</p>` : ''}
+    <table>
+      <thead><tr><th>memberName</th><th>memberRole</th><th>présences</th></tr></thead>
+      <tbody>
+        ${sample.map(r => `<tr>
+          <td>${r.memberName}</td>
+          <td>${r.memberRole}</td>
+          <td style="font-family:var(--mono);font-size:12px;">${freq[r.memberName] || 1}×</td>
+        </tr>`).join('')}
+        ${phase1Rows.length > 5 ? `<tr><td colspan="3" style="color:var(--faded);font-style:italic;font-family:var(--serif);">+ ${phase1Rows.length - 5} autres…</td></tr>` : ''}
+      </tbody>
+    </table>`;
+
+  // Enable export, unlock Phase 2
+  document.getElementById('p1ExportBtn').disabled = false;
+  document.getElementById('p1FilterZone').style.display = 'none';
+  unlockPhase('phase2');
+  renderPhase2UI();
+}
+
+function renderPhase1(rawRows) {
+  const freq     = computeFrequency(rawRows);
+  const uniqueN  = Object.keys(freq).length;
+  const maxFreq  = Math.max(...Object.values(freq));
+  const defaultT = Math.min(2, maxFreq);
+
+  // Compute distribution summary
+  const distMap = {};
+  Object.values(freq).forEach(c => { distMap[c] = (distMap[c] || 0) + 1; });
+  const distText = Object.keys(distMap).sort((a,b)=>+a-+b)
+    .map(k => `${k}× → ${distMap[k]} membres`).join(' · ');
+
+  // Count at current threshold
+  const countAt = t => Object.values(freq).filter(c => c >= t).length;
+
+  const status  = document.getElementById('p1Status');
+  const preview = document.getElementById('p1Preview');
+
+  status.innerHTML = `${rawRows.length} lignes importées · <strong>${uniqueN}</strong> membres uniques · répartition : ${distText}`;
+  status.style.color = '';
+
+  preview.innerHTML = '';
+  document.getElementById('p1FilterZone').style.display = 'block';
+
+  // Slider
+  const sliderEl  = document.getElementById('p1Slider');
+  const sliderVal = document.getElementById('p1SliderVal');
+  const sliderCount = document.getElementById('p1SliderCount');
+  const confirmBtn  = document.getElementById('p1ConfirmBtn');
+
+  sliderEl.min   = 1;
+  sliderEl.max   = maxFreq;
+  sliderEl.value = defaultT;
+  sliderVal.textContent   = `≥ ${defaultT} présence${defaultT > 1 ? 's' : ''}`;
+  sliderCount.textContent = `${countAt(defaultT)} membres retenus`;
+
+  sliderEl.oninput = () => {
+    const t = parseInt(sliderEl.value);
+    sliderVal.textContent   = `≥ ${t} présence${t > 1 ? 's' : ''}`;
+    sliderCount.textContent = `${countAt(t)} membres retenus`;
+    confirmBtn.textContent  = `Appliquer — ${countAt(t)} membres →`;
+  };
+
+  confirmBtn.textContent = `Appliquer — ${countAt(defaultT)} membres →`;
+}
+
+function handlePhase1File(file) {
+  const status = document.getElementById('p1Status');
+  status.textContent = 'Lecture…';
+  // Reset downstream state
+  phase1RawRows = []; phase1Rows = []; phase2Data = []; phase3Data = [];
+  document.getElementById('p1ExportBtn').disabled = true;
+  document.getElementById('p1Preview').innerHTML  = '';
+  document.getElementById('p1FilterZone').style.display = 'none';
+
+  const reader = new FileReader();
+  reader.onload = e => {
+    const rows = parsePhase1CSV(e.target.result);
+    if (!rows) {
+      status.innerHTML = '✗ Colonnes manquantes — le CSV meetup1 doit contenir : memberName · memberRole · eventTitle · eventDate · eventDescription';
+      status.style.color = 'var(--brick)';
+      return;
+    }
+    phase1RawRows = rows;
+    renderPhase1(rows);
+  };
+  reader.readAsText(file);
+}
+
+// Drop zone — click, keyboard, drag & drop
+(function initDropZone1() {
+  const zone  = document.getElementById('dropZone1');
+  const input = document.getElementById('fileInput1');
+
+  const openPicker = () => input.click();
+  zone.addEventListener('click', openPicker);
+  zone.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openPicker(); } });
+  input.addEventListener('change', e => { if (e.target.files[0]) handlePhase1File(e.target.files[0]); });
+
+  zone.addEventListener('dragover',  e => { e.preventDefault(); zone.classList.add('hover'); });
+  zone.addEventListener('dragleave', ()  => zone.classList.remove('hover'));
+  zone.addEventListener('drop', e => {
+    e.preventDefault();
+    zone.classList.remove('hover');
+    if (e.dataTransfer.files[0]) handlePhase1File(e.dataTransfer.files[0]);
+  });
+})();
+
+function exportPhase1CSV(e) {
+  e.stopPropagation();
+  if (!phase1Rows.length) return;
+  const cols = ['memberName', 'memberRole', 'eventTitle', 'eventDescription'];
+  let csv = cols.join(',') + '\n';
+  phase1Rows.forEach(r => {
+    csv += cols.map(c => `"${(r[c] || '').replace(/"/g, '""')}"`).join(',') + '\n';
+  });
+  downloadBlob(
+    new Blob([csv], { type: 'text/csv;charset=utf-8' }),
+    makeFilename('pipeline_import') + '.csv'
+  );
+}
+
+// ── Phase 2 : Serper Search top 10 ──────────────────────────────────────────
+const SERPER_URL = 'https://google.serper.dev/search';
+let p2Running = false, p2Paused = false;
+
+function linkedinDomain() {
+  return searchLang === 'en' ? 'linkedin.com/in' : 'fr.linkedin.com/in';
+}
+
+function buildSearchQuery(memberName, keyword) {
+  const kw = keyword ? ` ${keyword.trim()}` : '';
+  return `site:${linkedinDomain()} ${memberName}${kw}`;
+}
+
+function setSearchLang(lang) {
+  searchLang = lang;
+  localStorage.setItem('search_lang', lang);
+  document.documentElement.lang = lang;
+  applyTranslations();
+}
+
+function applyTranslations() {
+  // Toggle buttons
+  const btnFr = document.getElementById('langFr');
+  const btnEn = document.getElementById('langEn');
+  if (btnFr) { btnFr.style.background = searchLang === 'fr' ? 'var(--ink)' : 'transparent'; btnFr.style.color = searchLang === 'fr' ? 'var(--cream)' : 'var(--ink)'; }
+  if (btnEn) { btnEn.style.background = searchLang === 'en' ? 'var(--ink)' : 'transparent'; btnEn.style.color = searchLang === 'en' ? 'var(--cream)' : 'var(--ink)'; }
+
+  // Static elements by ID
+  const ids = {
+    headerSubtitle: 'subtitle', dropZone1Text: 'dropzone',
+    p1FilterLabel: 'filterLabel', p1ConfirmBtn: 'applyBtn',
+    phase1TitleText: 'phase1Title', phase2TitleText: 'phase2Title',
+    phase3TitleText: 'phase3Title', phase4TitleText: 'phase4Title',
+    scraperTitle: 'scraperTitle', scraperDesc: 'scraperDesc',
+    scraperBmHint: 'scraperBmHint', scraperExtHint: 'scraperExtHint',
+  };
+  for (const [id, key] of Object.entries(ids)) {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = t(key);
+  }
+
+  updateApiStatus();
+
+  // Re-render dynamic UIs, preserving form state
+  const kw = document.getElementById('p2Keyword')?.value || '';
+  renderPhase2UI();
+  const kwEl = document.getElementById('p2Keyword');
+  if (kwEl) kwEl.value = kw;
+
+  const p3StartBtn = document.getElementById('p3StartBtn');
+  if (p3StartBtn) p3StartBtn.textContent = t('launchScoring');
+
+  const p4UI = document.getElementById('phase4UI');
+  if (p4UI?.innerHTML) renderPhase4UI();
+}
+
+function renderPhase2UI() {
+  const container = document.getElementById('phase2UI');
+  container.innerHTML = `
+    <div style="margin-bottom:14px;">
+      <label class="mono-label">${t('keywordLabel')}</label>
+      <input type="text" id="p2Keyword" placeholder="${t('keywordPlaceholder')}"
+        style="font-family:var(--mono);font-size:13px;padding:6px 10px;border:1px solid var(--hairline-strong);background:var(--cream);color:var(--ink);width:100%;outline:none;" />
+      <p class="hint" style="margin-top:4px;"><code id="p2QueryHint" style="font-family:var(--mono);font-size:11px;">site:${linkedinDomain()} Prénom Nom mot-clé</code></p>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
+      <button class="btn btn-primary" id="p2StartBtn" onclick="startPhase2()">${t('launchSearch')}</button>
+      <button class="btn btn-secondary" id="p2PauseBtn" disabled onclick="togglePause2()">${t('pause')}</button>
+    </div>
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;">
+      <hr style="flex:1;border:none;border-top:1px solid var(--hairline);">
+      <span style="font-family:var(--mono);font-size:10px;color:var(--faded-light);letter-spacing:.08em;text-transform:uppercase;">ou</span>
+      <hr style="flex:1;border:none;border-top:1px solid var(--hairline);">
+    </div>
+    <div style="margin-bottom:16px;">
+      <label class="mono-label">${t('jsonSectionLabel')}</label>
+      <div style="display:flex;align-items:center;gap:10px;margin-top:6px;">
+        <label class="btn btn-secondary" style="cursor:pointer;display:inline-block;">
+          ${t('jsonBtn')}
+          <input type="file" id="p2JsonImport" accept=".json,application/json" style="display:none;" onchange="importPhase2JSON(this)">
+        </label>
+        <span id="p2ImportStatus" style="font-family:var(--mono);font-size:11px;color:var(--faded);"></span>
+      </div>
+    </div>
+    <div id="p2Status" class="kpi" style="margin-bottom:12px;"></div>
+    <div class="progress" style="margin-bottom:14px;">
+      <div class="bar" id="p2Bar" style="width:0%;background:var(--mustard);"></div>
+    </div>
+    <div id="p2Preview" style="font-size:.82rem;color:var(--faded);"></div>
+  `;
+
+}
+
+function importPhase2JSON(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const statusEl = document.getElementById('p2ImportStatus');
+  statusEl.textContent = 'Lecture…';
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const parsed = JSON.parse(e.target.result);
+      if (!Array.isArray(parsed) || !parsed.length) throw new Error('Tableau vide ou format invalide');
+      if (!parsed[0].memberName || !Array.isArray(parsed[0].results)) throw new Error('Structure JSON inattendue');
+
+      // Normalize names (dot → space) then filter invalid
+      const invalid = [];
+      phase2Data = parsed
+        .map(r => ({ ...r, memberName: normalizeName(r.memberName) }))
+        .filter(r => {
+          if (isValidFullName(r.memberName)) return true;
+          invalid.push(r.memberName);
+          return false;
+        });
+
+      statusEl.style.color = 'var(--success)';
+      statusEl.textContent = `✓ ${phase2Data.length} membre(s) chargés${invalid.length ? ` · ${invalid.length} ignoré(s) : ${invalid.join(', ')}` : ''}`;
+      const badge = document.getElementById('p2Badge');
+      badge.textContent = `${phase2Data.length} importés`;
+      badge.style.background = 'var(--success)';
+      badge.style.color = '#fff';
+      const exportBtn = document.getElementById('p2ExportBtn');
+      if (exportBtn) exportBtn.disabled = false;
+      unlockPhase('phase3');
+      renderPhase3UI();
+    } catch (err) {
+      statusEl.style.color = 'var(--brick)';
+      statusEl.textContent = `✗ ${err.message}`;
+    }
+    input.value = '';
+  };
+  reader.readAsText(file);
+}
+
+async function startPhase2() {
+  if (!phase1Rows.length) {
+    alert('Importez d\'abord un CSV en Phase 1.');
+    return;
+  }
+  const serperKey = serperKeyEl.value.trim();
+  if (!serperKey) {
+    alert(t('serperAlert'));
+    return;
+  }
+
+  p2Running = true;
+  p2Paused  = false;
+  phase2Data = [];
+
+  const startBtn  = document.getElementById('p2StartBtn');
+  const pauseBtn  = document.getElementById('p2PauseBtn');
+  const statusEl  = document.getElementById('p2Status');
+  const barEl     = document.getElementById('p2Bar');
+  const previewEl = document.getElementById('p2Preview');
+
+  startBtn.disabled = true;
+  pauseBtn.disabled = false;
+
+  const SERPER_DELAY = 500;
+  const total = phase1Rows.length;
+  let i = 0;
+
+  while (i < total) {
+    // Wait while paused
+    while (p2Paused) {
+      await delay(300);
+    }
+
+    const row = phase1Rows[i];
+    const pct = Math.round((i / total) * 100);
+
+    statusEl.textContent = `Traitement ${i + 1}/${total} — ${row.memberName}`;
+    barEl.style.width = pct + '%';
+
+    const keyword = document.getElementById('p2Keyword')?.value.trim() || '';
+    const query   = buildSearchQuery(row.memberName, keyword);
+
+    // Show query for first member (debug visibility)
+    if (i === 0) {
+      previewEl.innerHTML = `<span style="font-family:var(--mono);font-size:11px;color:var(--faded);">requête : ${query}</span>`;
+    }
+
+    let results = [];
+    try {
+      const resp = await fetch(SERPER_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-API-KEY': serperKey },
+        body: JSON.stringify({ q: query, num: 10 }),
+      });
+      if (resp.status === 429) {
+        statusEl.textContent = '⚠ Quota Serper dépassé — pause 60s…';
+        barEl.style.background = 'var(--brick)';
+        await delay(60000);
+        barEl.style.background = 'var(--mustard)';
+        continue; // retry same i
+      }
+      const data = await resp.json();
+      if (!resp.ok) {
+        const msg = data?.message || `HTTP ${resp.status}`;
+        statusEl.innerHTML = `<span style="color:var(--brick);">✗ Erreur Serper : ${msg}</span>`;
+        console.error('[Serper] API error:', data);
+        startBtn.disabled = false;
+        pauseBtn.disabled = true;
+        p2Running = false;
+        return;
+      }
+      results = (data.organic || []).map(item => ({
+        url:     item.link    || '',
+        title:   item.title   || '',
+        snippet: item.snippet || '',
+      }));
+    } catch (err) {
+      statusEl.innerHTML = `<span style="color:var(--brick);">✗ Erreur réseau : ${err.message}</span>`;
+      console.error('[Serper] Fetch error:', err);
+      startBtn.disabled = false;
+      p2Running = false;
+      return;
+    }
+
+    phase2Data.push({ ...row, results });
+
+    // Preview
+    const firstThree = results.slice(0, 3).map(r => `<li>${r.title || r.url}</li>`).join('');
+    previewEl.innerHTML =
+      `<strong style="color:var(--ink);">${row.memberName}</strong> — ${results.length} résultat(s)` +
+      (firstThree ? `<ul style="margin:4px 0 0 16px;">${firstThree}</ul>` : '');
+
+    i++;
+    if (i < total) await delay(SERPER_DELAY);
+  }
+
+  // Completion
+  barEl.style.width = '100%';
+  barEl.style.background = '';
+  barEl.classList.add('success');
+  statusEl.textContent = `✓ ${total} membre(s) traité(s)`;
+
+  const badge = document.getElementById('p2Badge');
+  badge.textContent = `${total} traités`;
+  badge.style.background = 'var(--success)';
+  badge.style.color = '#fff';
+
+  pauseBtn.disabled = true;
+  startBtn.disabled = false;
+
+  const exportBtn = document.getElementById('p2ExportBtn');
+  exportBtn.disabled = false;
+
+  p2Running = false;
+  unlockPhase('phase3');
+  renderPhase3UI();
+}
+
+function togglePause2() {
+  p2Paused = !p2Paused;
+  const pauseBtn = document.getElementById('p2PauseBtn');
+  pauseBtn.textContent = p2Paused ? '▶ Reprendre' : '⏸ Pause';
+}
+
+function exportPhase2JSON(e) {
+  e.stopPropagation();
+  if (!phase2Data.length) return;
+  const json = JSON.stringify(phase2Data, null, 2);
+  downloadBlob(
+    new Blob([json], { type: 'application/json;charset=utf-8' }),
+    makeFilename('pipeline_search') + '.json'
+  );
+}
+
+// ── Phase 3 : Gemini scoring ───────────────────────────────────────────────────
+const GEMINI_URL   = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
+const GEMINI_DELAY = 4200;  // 15 RPM free tier
+
+function buildGeminiPrompt(row) {
+  const n = row.results.length;
+  const profileList = row.results.map((r, idx) =>
+    `${idx + 1}. ${r.title}\n   ${r.snippet}\n   ${r.url}`
+  ).join('\n');
+  return `Tu es un expert en sourcing recrutement.
+Contexte du meetup : ${row.eventTitle} — ${row.eventDescription}
+Personne recherchée : ${row.memberName} (rôle meetup : ${row.memberRole})
+
+Voici ${n} profils LinkedIn trouvés via Serper Search :
+${profileList}
+
+Quel profil correspond le mieux à cette personne compte tenu du contexte du meetup ?
+Réponds UNIQUEMENT en JSON valide, sans markdown :
+{"best_index": 0, "confidence": 0.87, "reason": "justification courte"}
+
+Si aucun profil ne correspond, réponds : {"best_index": -1, "confidence": 0, "reason": "no match"}`;
+}
+
+function parseGeminiResponse(text) {
+  let obj;
+  try {
+    obj = JSON.parse(text);
+  } catch {
+    // fallback : extraire le premier objet JSON (greedy pour capturer l'objet entier)
+    const match = text.match(/\{[\s\S]*\}/);
+    if (!match) throw new Error('No JSON in response');
+    obj = JSON.parse(match[0]);
+  }
+  if (Array.isArray(obj)) obj = obj[0];
+  if (typeof obj?.best_index !== 'number') throw new Error('Missing best_index');
+  return {
+    bestIndex:  obj.best_index,
+    confidence: Math.min(1, Math.max(0, Number(obj.confidence) || 0)),
+    reason:     String(obj.reason || ''),
+  };
+}
+
+function renderPhase3UI() {
+  const container = document.getElementById('phase3UI');
+  container.innerHTML = `
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px;">
+      <button class="btn btn-primary" id="p3StartBtn" onclick="startPhase3()">${t('launchScoring')}</button>
+    </div>
+    <div id="p3Status" class="kpi" style="margin-bottom:12px;"></div>
+    <div class="progress" style="margin-bottom:14px;">
+      <div class="bar" id="p3Bar"></div>
+    </div>
+    <div id="p3Preview"></div>
+  `;
+}
+
+async function startPhase3() {
+  if (!phase2Data.length) return;
+
+  const geminiKey = geminiKeyEl.value.trim();
+  if (!geminiKey) {
+    alert(t('geminiAlert'));
+    return;
+  }
+
+  phase3Data = [];
+
+  const startBtn  = document.getElementById('p3StartBtn');
+  const statusEl  = document.getElementById('p3Status');
+  const barEl     = document.getElementById('p3Bar');
+  const previewEl = document.getElementById('p3Preview');
+
+  startBtn.disabled = true;
+
+  const total = phase2Data.length;
+
+  for (let i = 0; i < total; i++) {
+    const row = phase2Data[i];
+
+    statusEl.textContent =
+      `🤖 ${row.memberName} (${i + 1}/${total})`;
+    barEl.style.width = `${Math.round((i / total) * 100)}%`;
+
+    let bestIndex  = -1;
+    let confidence = 0;
+    let reason     = 'no results';
+
+    if (row.results.length > 0) {
+      try {
+        const resp = await fetch(`${GEMINI_URL}?key=${geminiKey}`, {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({
+            contents: [{ parts: [{ text: buildGeminiPrompt(row) }] }],
+            generationConfig: {
+              temperature: 0.1,
+              maxOutputTokens: 200,
+              responseMimeType: 'application/json',
+              thinkingConfig: { thinkingBudget: 0 },
+            },
+          }),
+        });
+        const data = await resp.json();
+        if (!resp.ok) {
+          const apiMsg = data?.error?.message || `HTTP ${resp.status}`;
+          throw new Error(`API Gemini : ${apiMsg}`);
+        }
+        const parts = data.candidates?.[0]?.content?.parts || [];
+        const text  = (parts.find(p => !p.thought) ?? parts[0])?.text || '';
+        if (!text) throw new Error('Réponse vide — vérifier quota ou clé Gemini');
+        console.debug('[Gemini] raw:', text);
+        ({ bestIndex, confidence, reason } = parseGeminiResponse(text));
+      } catch (err) {
+        reason = `⚠ ${err.message}`;
+        console.warn(`[Gemini] Erreur pour ${row.memberName}:`, err);
+      }
+    }
+
+    const bestResult = (bestIndex >= 0 && row.results[bestIndex]) ? row.results[bestIndex] : null;
+
+    phase3Data.push({
+      ...row,
+      bestIndex,
+      bestUrl:    bestResult?.url   || '',
+      bestTitle:  bestResult?.title || '',
+      confidence,
+      reason,
+    });
+
+    // Live preview — all scored rows, most recent first
+    const rows = [...phase3Data].reverse();
+    previewEl.innerHTML = `
+      <table>
+        <thead>
+          <tr><th>${t('thMember')}</th><th>${t('thBest')}</th><th>${t('thConfidence')}</th><th>${t('thReason')}</th></tr>
+        </thead>
+        <tbody>
+          ${rows.map(r => {
+            const link = r.bestUrl
+              ? `<a href="${r.bestUrl}" target="_blank" rel="noopener" style="color:var(--mustard);">${(r.bestTitle || r.bestUrl).slice(0, 55)}</a>`
+              : '<span style="color:var(--faded);">—</span>';
+            const conf = r.bestIndex >= 0
+              ? `${Math.round(r.confidence * 100)}%`
+              : '<span style="color:var(--faded);">—</span>';
+            const reasonStyle = r.reason?.startsWith('⚠') ? 'color:var(--brick);' : 'color:var(--faded);';
+            return `<tr><td>${r.memberName}</td><td>${link}</td><td>${conf}</td><td style="${reasonStyle}font-size:11px;">${r.reason || ''}</td></tr>`;
+          }).join('')}
+        </tbody>
+      </table>`;
+
+    if (i < total - 1) await delay(GEMINI_DELAY);
+  }
+
+  // Completion
+  barEl.style.background = '';
+  barEl.classList.add('success');
+  barEl.style.width = '100%';
+
+  const matched = phase3Data.filter(r => r.bestIndex >= 0).length;
+  statusEl.textContent = T[searchLang].scoringDone(matched, total);
+
+  const p3Badge = document.getElementById('p3Badge');
+  p3Badge.textContent = T[searchLang].matched(matched, total);
+  p3Badge.style.background = 'var(--mustard)';
+  p3Badge.style.color = 'var(--ink)';
+
+  unlockPhase('phase4');
+  renderPhase4UI();
+}
+
+// ── Phase 4 : Export CSV ───────────────────────────────────────────────────────
+function toCSV(rows) {
+  if (!rows.length) return '';
+  const headers = Object.keys(rows[0]);
+  const lines = [headers.join(',')];
+  for (const row of rows) {
+    lines.push(headers.map(h => `"${String(row[h] ?? '').replace(/"/g, '""')}"`).join(','));
+  }
+  return lines.join('\n');
+}
+
+function buildBestProfilesRows(data) {
+  return data.map(r => ({
+    memberName:  r.memberName,
+    memberRole:  r.memberRole,
+    eventTitle:  r.eventTitle,
+    linkedinUrl: r.bestUrl,
+    title:       r.bestTitle,
+    confidence:  r.confidence ? Math.round(r.confidence * 100) + '%' : '',
+    reason:      r.reason,
+  }));
+}
+
+function buildAllScoresRows(data) {
+  const rows = [];
+  for (const r of data) {
+    if (r.results.length === 0) {
+      rows.push({ memberName: r.memberName, memberRole: r.memberRole, rank: 1, linkedinUrl: '', title: '', snippet: '', is_best: false });
+    } else {
+      r.results.forEach((res, idx) => {
+        rows.push({
+          memberName:  r.memberName,
+          memberRole:  r.memberRole,
+          rank:        idx + 1,
+          linkedinUrl: res.url,
+          title:       res.title,
+          snippet:     res.snippet,
+          is_best:     idx === r.bestIndex,
+        });
+      });
+    }
+  }
+  return rows;
+}
+
+function renderPhase4UI() {
+  const matched = phase3Data.filter(r => r.bestIndex >= 0).length;
+  const total   = phase3Data.length;
+
+  document.getElementById('phase4UI').innerHTML = `
+    <p class="kpi">${T[searchLang].scoredKpi(total, matched)}</p>
+    <p class="hint">${t('exportDesc')}</p>
+    <ul style="font-size:13px;color:var(--faded);margin:8px 0 16px 16px;line-height:1.7;">
+      <li>${t('exportLi1')}</li>
+      <li>${t('exportLi2')}</li>
+    </ul>
+    <button class="btn btn-primary" onclick="exportCSV()">${t('exportBtn')}</button>
+    <div id="p4Status" class="kpi" style="margin-top:12px;"></div>
+  `;
+}
+
+function exportCSV() {
+  if (!phase3Data.length) return;
+
+  const csv1 = toCSV(buildBestProfilesRows(phase3Data));
+  downloadBlob(new Blob(['﻿' + csv1], { type: 'text/csv;charset=utf-8' }), makeFilename('best_profiles') + '.csv');
+
+  const csv2 = toCSV(buildAllScoresRows(phase3Data));
+  downloadBlob(new Blob(['﻿' + csv2], { type: 'text/csv;charset=utf-8' }), makeFilename('all_scores') + '.csv');
+
+  document.getElementById('p4Status').textContent = '✓ 2 fichiers téléchargés.';
+}
+// ── Scraper download ──────────────────────────────────────────────────────────
+const SCRAPER_CODE = "(()=>{const sleep=ms=>new Promise(r=>setTimeout(r,ms));const log=(...a)=>console.log('[MEETUP]',...a);(()=>{const block=[/sentry.io/i,/ingest./i,/analytics/i];const orig=window.fetch;if(!orig)return;window.fetch=async(...args)=>{try{const u=String(args[0]?.url||args[0]||'');if(block.some(rx=>rx.test(u)))return new Response(null,{status:204});}catch{}return orig(...args);};})();async function fetchRetry(url,opts,tries=5){for(let i=0;i<=tries;i++){try{const res=await fetch(url,opts);if(res.status===429&&i<tries){const ra=parseInt(res.headers.get('Retry-After')||'2',10);await sleep(1000*Math.min(ra,10));continue}if(!res.ok&&i<tries){await sleep(1000*Math.pow(2,i));continue}return res}catch(err){if(i===tries)throw err;await sleep(1000*Math.pow(2,i))}}}function makeUI(){const existed=document.getElementById('meetupScraperUI');if(existed)existed.remove();const wrap=document.createElement('div');wrap.id='meetupScraperUI';wrap.style.cssText='position:fixed;top:20px;right:20px;z-index:2147483647;background:#1a1a1a;color:#fff;padding:16px;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.5);font:13px -apple-system,system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;min-width:340px;max-width:440px';const header=document.createElement('div');header.style.cssText='display:flex;align-items:center;justify-content:space-between;margin-bottom:12px';const title=document.createElement('div');title.textContent='\ud83c\udfaf Meetup Scraper (v3)';title.style.cssText='font-weight:600;font-size:15px';const close=document.createElement('button');close.textContent='\u2715';close.style.cssText='background:#333;border:none;color:#aaa;width:28px;height:28px;border-radius:6px;cursor:pointer;font-size:16px';close.onclick=()=>wrap.remove();header.append(title,close);const stage=document.createElement('div');stage.id='scraperStage';stage.style.cssText='margin:8px 0;color:#ddd;font-size:13px';const barOuter=document.createElement('div');barOuter.style.cssText='height:8px;background:#333;border-radius:4px;overflow:hidden;margin:10px 0';const bar=document.createElement('div');bar.id='scraperBar';bar.style.cssText='height:100%;width:0%;background:linear-gradient(90deg,#0078ff,#00c4ff);transition:width .3s ease';barOuter.append(bar);const details=document.createElement('div');details.id='scraperDetails';details.style.cssText='margin-top:8px;color:#999;font-size:12px;min-height:18px';const pause=document.createElement('button');pause.textContent='\u23f8\ufe0f Pause';pause.id='pauseBtn';pause.style.cssText='margin-top:10px;width:100%;background:#333;color:#fff;border:none;padding:8px;border-radius:6px;cursor:pointer;font-size:12px';pause.onclick=()=>{window.pauseScroll=!window.pauseScroll;pause.textContent=window.pauseScroll?'\u25b6\ufe0f Resume':'\u23f8\ufe0f Pause'};wrap.append(header,stage,barOuter,details,pause);document.body.appendChild(wrap)}function updateUI(stageTxt,pct,detail=''){const s=document.getElementById('scraperStage'),b=document.getElementById('scraperBar'),d=document.getElementById('scraperDetails');if(s)s.textContent=stageTxt;if(b)b.style.width=`${Math.min(100,Math.max(0,pct))}%`;if(d)d.textContent=detail}function getGroupUrlname(){try{const ap=window.__NEXT_DATA__?.props?.pageProps?.__APOLLO_STATE__;const gk=Object.keys(ap||{}).find(k=>k.startsWith('Group:'));if(gk&&ap[gk]?.urlname){log('urlname from Apollo cache:',ap[gk].urlname);return ap[gk].urlname}}catch(e){}try{const c=document.querySelector('link[rel=\"canonical\"]');if(c){const m=c.href.match(/meetup\\.com\\/([a-zA-Z0-9_-]+)\\/?$/i);if(m&&m[1]){log('urlname from canonical:',m[1]);return m[1]}}}catch(e){}const m=window.location.pathname.match(/^\\/([^\\/]+)\\/(?:[a-zA-Z]{2}-[a-zA-Z]{2}\\/)?([^\\/]+)\\//);if(m){const l=m[1].toLowerCase();if(['fr-fr','en-us','de-de','es-es','pt-br','it-it','nl-nl','ja-jp','ko-kr','zh-tw'].includes(l))return m[2];return m[1]}return window.location.pathname.split('/').filter(Boolean)[0]||'UnknownGroup'}async function fetchGroupEvents(urlname){const events=[];let cursor=null;const query=`query getGroupEvents($urlname: String!, $after: String) { groupByUrlname(urlname: $urlname) { id name events(filter: {status: [PAST]}, first: 50, after: $after, sort: DESC) { pageInfo { hasNextPage endCursor } edges { node { id title description dateTime } } } } }`;do{const res=await fetchRetry('https://www.meetup.com/gql2',{method:'POST',credentials:'include',headers:{'content-type':'application/json','apollographql-client-name':'nextjs-web'},body:JSON.stringify({operationName:'getGroupEvents',variables:{urlname,after:cursor},query})},5);if(!res?.ok)break;const data=await res.json();log('events fetched:',data?.data?.groupByUrlname?.events?.edges?.length??data?.errors?.[0]?.message);const grp=data?.data?.groupByUrlname;if(!grp){log('\u274c null \u2014 full:',JSON.stringify(data).slice(0,200));break;}(grp.events?.edges||[]).forEach(e=>{if(e.node)events.push(e.node)});const pi=grp.events?.pageInfo;cursor=pi?.hasNextPage?pi.endCursor:null;if(cursor)await sleep(300)}while(cursor);return events}async function fetchEventPage(eventId,after=null){const query=`query getAttendees($eventId: ID!, $after: String) { event(id: $eventId) { id rsvps(first: 100, after: $after, filter: {rsvpStatus: [YES, ATTENDED]}) { pageInfo { hasNextPage endCursor } edges { node { status guestsCount member { id name eventsAttended noShowCount isFamiliarFace } membership { role status } } } } } }`;const variables={eventId,after};const body={operationName:'getAttendees',variables,query};const res=await fetchRetry('https://www.meetup.com/gql2',{method:'POST',credentials:'include',headers:{'content-type':'application/json'},body:JSON.stringify(body)},5);if(res&&res.ok)return res.json();return null}async function fetchAttendees(eventId,idx,total){const out=[];let cursor=null;for(updateUI('Fetching Attendees...',30+Math.round(idx/total*65),`Processing Event ${idx+1}/${total} (ID: ${eventId})`);cursor!==undefined;){const data=await fetchEventPage(eventId,cursor);if(!data?.data?.event)break;const ev=data.data.event;(ev.rsvps?.edges||[]).forEach(ed=>{const node=ed.node||{};const mem=node.member||{};const memship=node.membership||{};out.push({eventId,memberName:mem.name||'Unknown',memberId:mem.id||'',status:node.status||'',guests:node.guestsCount||0,eventsAttended:mem.eventsAttended||0,noShowCount:mem.noShowCount||0,memberRole:memship.role||'MEMBER',memberStatus:memship.status||'ACTIVE',isFamiliarFace:mem.isFamiliarFace?1:0})});const hasNext=ev.rsvps?.pageInfo?.hasNextPage;cursor=hasNext?ev.rsvps.pageInfo.endCursor:undefined;await sleep(50)}log(`\u2705 Event ${eventId}: ${out.length} attendees`);updateUI('Fetching Attendees...',30+Math.round((idx+1)/total*65),`\u2705 Event ${idx+1}/${total} (ID: ${eventId}) fetched: ${out.length} attendees.`);return out}(async()=>{try{makeUI();updateUI('Init...',0);const group=getGroupUrlname();log('\ud83d\udccd Group detected:',group);updateUI(`Group: ${group}`,5);await sleep(500);updateUI('Loading event list...',10,'Fetching events via groupByUrlname...');const eventsMeta=await fetchGroupEvents(group);if(eventsMeta.length===0){updateUI('\u274c 0 events found',100);log('\u274c No events');return}log(`\u2705 Found ${eventsMeta.length} events`);updateUI(`Found ${eventsMeta.length} events`,28,'Building event map...');const eventMap={};eventsMeta.forEach(e=>{eventMap[e.id]={eventTitle:e.title||'',eventDate:e.dateTime?e.dateTime.slice(0,10):'',eventDescription:(e.description||'').replace(/[\\n\\r]+/g,' ').replace(/<[^>]*>/g,'').slice(0,600)}});const ids=eventsMeta.map(e=>e.id);const rows=[];const total=ids.length;const batchSize=Math.min(5,total);for(let i=0;i<total;i+=batchSize){const chunk=ids.slice(i,i+batchSize);const results=await Promise.all(chunk.map((id,idx)=>fetchAttendees(id,i+idx,total).catch(err=>{log(`\u274c ${id}:`,err?.message||err);updateUI('Fetching Attendees...',30+Math.round((i+idx+1)/total*65),`\u274c Event ${i+idx+1}/${total} failed.`);return[]})));results.flat().forEach(r=>{const meta=eventMap[r.eventId]||{};rows.push({...r,...meta})});await sleep(120)}updateUI('Generating CSV...',96);if(rows.length===0){updateUI('\u26a0\ufe0f 0 attendees found',100);log('\u26a0\ufe0f No attendees');return}const headers=['eventId','eventTitle','eventDate','eventDescription','memberName','memberId','status','guests','eventsAttended','noShowCount','memberRole','memberStatus','isFamiliarFace'];const csv=[headers.join(',')];rows.forEach(r=>{csv.push(headers.map(h=>`\"${String(r[h]??'').replace(/\"/g,'\"\"')}\"`).join(','))});const blob=new Blob([csv.join('\\n')],{type:'text/csv;charset=utf-8'});const url=URL.createObjectURL(blob);const a=document.createElement('a');const date=new Date().toISOString().slice(0,10);a.href=url;a.download=`meetup_${group}_enriched_${date}.csv`;a.click();URL.revokeObjectURL(url);updateUI('\u2705 Done!',100,`${ids.length} events | ${rows.length} attendees`);const btn=document.getElementById('pauseBtn');if(btn){btn.textContent='\u2705 OK';btn.disabled=true;btn.style.opacity='0.5'}}catch(err){log('\u274c ERROR:',err);updateUI('\u274c Error',100,err?.message||String(err));console.error(err)}})();})()";
+
+(function() {
+  const bm = document.getElementById('bookmarkletLink');
+  if (bm) bm.href = 'javascript:' + SCRAPER_CODE;
+})();
+
+const SCRAPER_ICON16  = 'iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAABbklEQVR4AazRvSt/UQDH8Vc3vpTFYFCUJCklmZgoi8EkxUTysCmjQRk8xqKMTAarooSUSYTEYhAZ/API9JO6v3PuzWb5fnM7n3seP+/zOeckaZrOB/0LKrZEz3yCuaBCULEleuYiIDaKNf+sL0TAT6ek+g8ACwt0drK7S3s729t8f5OmvyeKc6OjdHdzcyMxMkJlJevrzM6ytkZtLcPDvwMeH7m6YmyMh4cAaGzk5YWlJZqaeHtjb4/X1xywscHQEF1dfH7S0kJNDYuLDAwEQDS8v9PXx8UFMzM5pK2N/X12dvJ0Hx+Ul+fRj44oK2NzMwCenqiuphBe8/SU3l7OzqivZ2WFnh7u76mqYnWVeITnZyoqMiUZtbVV9kVqXR3NzVxfMznJ+TmXl3nshgYGB5mYoL8/S5vo6ODkJPM7OCDeyfQ0h4dMTXF7m1/s8THj42xtcXeXj4UUSe4s/f8ngK/S9/cVEywHQCmQ6Fn+DwAA//8oT/UCAAAABklEQVQDAA3yotNxo0kIAAAAAElFTkSuQmCC';
+const SCRAPER_ICON32  = 'iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAADxUlEQVR4AeyWaYiOURTHf15LSnhLMciWJFK2UBTK7ouSQpLJGhONrA2TLA2hpIwl2yjJFuKDNfkg+xKS5dOEzDRTU7M1zfq6/3Pet5mpmTIfvOPDPN17znPOufecc8/93/s8kVgspr4z8LzQk9UUSzEjESAj9L2hp4SerKZYipmhBNKSFbWJOGlKQNk0YUuKKkUJJCVSc0HaEmirwH9QgepqOHYMFi6EHTugpgZ+/oR162DePMjJaQ7ALdP/+AGrV8PkybBqFfz+bfMjbNwIGeEyvHULsrLgzBmYOBFOnIDbt2H5cnjzxgZTUuIJuvT3VPMmTYLr16FLF7h82f0GDxGGDYOvX2Hz5iCGtmULFBXBwYOwaBHEYvDgAcyZA9Eo9OkDHz6EgS1omv/rF2zaBHfvQlq4fD99MgcRE+S0fXtTUFYGp06BElm61HV79sC9e9CuHRQWwrlztOiprfXhR4/Cly9w5w7MnWu6ehDGM2LsWFiyxIwUFzuvrITdu+H5c5dLS50n6NOnsHUrrF8PK1f6e11dwgqzZkHPnp78yJEwYwYcP272+gQSZRVAtFKZP38W9fJnZmIYkKZ3b1Hv27Y5sLKzHR85OXDoEHz86HbRaBRu3IDu3UGgVwXfvZMFT0Agyc3FSizkE3+0MiUjcIq/fOmG0aOdnz+PYaVXL3j9GrZvB5V73DjQSjXq7FkYMADGj4fHj6FrV1AFU1MNX56A9kVgGzECUuIfR2FBJZezUaPkCh49cq5TorcDB0Th8GEYPhwKClyeMAFbTG4udpw7dYKOHWHMGMcW4RHww3GPhFf4/t0YAwc6F33yBKqqYNo0SRg4nz2DwYOxk/DiRf28xBghXaM7dxaF06fdR8Mti0bdJtqhQ3wLQiaSDaH2EojKFRj9+onC27furFs3uHkTZs92vahWnpcHwolkXTq7dsH+/ZKwe0T7roQSuqlTbSFegYoKH1he7lz02zdRSNhcgvfvYf58WLAAhgxxrfa3f38YNAhU7qtXQdsjYGqMfKxYgd2ESlQYunjR5noC06fDzJlw4YIpjejoLF4My5aZaFfokSOwYQN2MenGfPjQ91jAFfKFdN0hAqNOwdq12NHdtw/ka80auHYNXr2Cvn3NrycwZQrcv+/n09SBKNClS9CjRxBC0ylITwddJjrHQWXo1iqvXIH0dAxoqale+qFDNcLn6xsjXydPeuXC3ruROAYSUivwSCvEbBSyLYG2CqgC+Y1QkVwhXwmE72hyozaIlq0Ewo8gmUH5TyoR/DbVFEsxs/4AAAD//9BtBjkAAAAGSURBVAMAxRqeoN9UV4AAAAAASUVORK5CYII=';
+const SCRAPER_ICON128 = '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';
+const SCRAPER_MANIFEST = "{\"manifest_version\": 3, \"name\": \"Meetup Scraper 2026\", \"version\": \"1.3\", \"description\": \"Exporte les participants d'un\u00e9v\u00e9nement Meetup en CSV.\", \"permissions\": [\"activeTab\", \"scripting\"], \"host_permissions\": [\"https://www.meetup.com/*\"], \"action\": {\"default_popup\": \"popup.html\", \"default_icon\": {\"16\": \"icon16.png\", \"32\": \"icon32.png\", \"128\": \"icon192.png\"}}, \"icons\": {\"16\": \"icon16.png\", \"32\": \"icon32.png\", \"128\": \"icon192.png\"}}";
+
+async function downloadExtensionZip() {
+  if (typeof JSZip === 'undefined') {
+    alert('JSZip non chargé — vérifier la connexion internet.');
+    return;
+  }
+  const zip = new JSZip();
+  zip.file('manifest.json', SCRAPER_MANIFEST);
+  zip.file('content.js', SCRAPER_CODE);
+  zip.file('popup.html', [
+    '<!DOCTYPE html><html><head><meta charset="UTF-8" />',
+    '<style>',
+    'body{width:220px;padding:14px;font-family:-apple-system,system-ui,sans-serif;background:#131310;color:#f1ebde;margin:0}',
+    'h3{margin:0 0 10px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#c89438;font-weight:700}',
+    'button{width:100%;padding:10px;background:#c89438;border:none;color:#131310;font-weight:700;font-size:13px;cursor:pointer}',
+    'button:hover{background:#a87a28}',
+    '.hint{margin-top:10px;font-size:11px;color:#9b948a;line-height:1.4}',
+    '</style></head><body>',
+    '<h3>Meetup Scraper</h3>',
+    '<button id="startBtn">&#9654; Lancer l\'extraction</button>',
+    '<p class="hint">Ouvrir un \u00e9v\u00e9nement Meetup, puis cliquer.</p>',
+    '<script src="popup.js"><\/script>',
+    '</body></html>'
+  ].join('\n'));
+  zip.file('popup.js', [
+    "document.getElementById('startBtn').addEventListener('click', async () => {",
+    "  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });",
+    "  if (!tab) return;",
+    "  try {",
+    "    await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['content.js'] });",
+    "  } catch (e) {",
+    "    alert('Erreur : ' + e.message + '\\nOuvrir une page meetup.com d\'abord.');",
+    "  }",
+    "  window.close();",
+    "});"
+  ].join('\n'));
+  zip.file('icon16.png',  SCRAPER_ICON16,  {base64: true});
+  zip.file('icon32.png',  SCRAPER_ICON32,  {base64: true});
+  zip.file('icon192.png', SCRAPER_ICON128, {base64: true});
+  const blob = await zip.generateAsync({type: 'blob'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'meetup-scraper-extension.zip';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+</script>
+</body>
+</html>
