@@ -50,7 +50,6 @@ Détails d'implémentation clés :
 | `search-worker.js` | Worker Cloudflare — proxy CORS **optionnel** pour Serper. | ⚠️ seulement si CORS bloque (voir §5) |
 | `wrangler.toml` | Config de déploiement du worker Cloudflare. | ⚠️ idem |
 | `proxy-local.py` | Proxy CORS local (Python, sans dépendance) pour tester en dev. | ⚠️ dev uniquement |
-| `meetup1-scraper.html` | Ancienne page autonome du scraper (design bleu générique). **Redondant** : le scraper est déjà embarqué dans `meetup-pipeline.html`. | 🗑️ legacy, ignorable |
 
 ---
 
